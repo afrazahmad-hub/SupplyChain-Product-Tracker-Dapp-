@@ -63,7 +63,7 @@ contract Tracking {
         
         require(msg.value == _price, "Amount must be equal to price");
         
-        // declared a variable named "shipment", and update the data of "Shipment" struct. //delegate call
+        // declared a variable named "shipment", and update the data of "Shipment" struct.
         Shipment memory shipment = Shipment(msg.sender, _receiver, _pickupTime, 0, _distance, _price, ShipmentStatus.PENDING, false);
 
         // pushed the shipment variable's data into the shipments array/mapping

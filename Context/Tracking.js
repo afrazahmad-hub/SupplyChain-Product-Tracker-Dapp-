@@ -1,31 +1,33 @@
-import React from "react";
-import { useState, useEffect } from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import Web3Modal from "web3modal";
-import { Contract, ethers } from "ethers";
-import { createContext } from "react";
+import { ethers } from "ethers";
+// import { createContext } from "react";
 
 // Internal imports
-import tracking from "../Context/Tracking.json";
+import tracking from "./Tracking.json";
 const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+
 const contractABI = tracking.abi;
 
 // --- FETCHING SMART CONTRACT
 const fetchContract = (signerOrProvider) => {
-  new ethers.Contract(contractAddress, contractABI, signerOrProvider);
+  return new ethers.Contract(contractAddress, contractABI, signerOrProvider);
 };
 
 //  React context allows us to share data (state) across our components more easily.
 // By using context we can avoid props, to enter every single chield. rather we can get directly any any chield
 export const TrackingContext = React.createContext();
 
-export const TrackingProvider = ({ children }) => {
+export function TrackingProvider({ children }) {
   // STATE VARIABLES
   const DappName = "Product Tracking Dapp";
 
   const [currentUser, setCurrentUser] = useState("");
 
-  const createShipment = async (items) => {
-    console.log(items);
+  async function createShipment(items) {
+    // console.log(items);
 
     // --- get the arguments of "createShipment" function from contract.
     const { receiver, pickupTime, distance, price } = items;
@@ -55,36 +57,42 @@ export const TrackingProvider = ({ children }) => {
 
       //   wait untill create item rander.
       await createItem.wait();
-      console.log(createItem);
+      // console.log(createItem);
     } catch (error) {
-      throw new Error("Failed to create shipment: ", error);
+      console.log("Failed to create shipment: ", error);
     }
-  };
+  }
 
   async function getAllShipments() {
-    const provider = new ethers.providers.JsonRpcProvider();
-
-    // Notice that we are not usning the Signer here,
-    // The reason is that we are not going change any state vareiable
-    // Thats why wee do not need to provide "Signer" /
-    // Simply we do not need to do any transaction.
-    const contract = fetchContract(provider);
-
     try {
+      const provider = new ethers.providers.JsonRpcProvider();
+
+      // const infuraProvider = new ethers.providers.JsonRpcProvider(
+      //   "https://goerli.infura.io/v3/7c02737cf5f14c60899538534507f28c"
+      // );
+
+      // Notice that we are not usning the Signer here,
+      // The reason is that we are not going change any state vareiable
+      // Thats why wee do not need to provide "Signer" /
+      // Simply we do not need to do any transaction.
+      const contract = fetchContract(provider);
+
       const shipments = await contract.getAllTransactions();
       const allShipments = shipments.map((shipment) => ({
         sender: shipment.sender,
         receiver: shipment.receiver,
-        price: ethers.utils.formatEther(shipment.price.toString()),
         pickupTime: shipment.pickupTime.toNumber(),
         deliveryTime: shipment.deliveryTime.toNumber(),
         distance: shipment.distance.toNumber(),
-        isPaid: shipment.isPaid,
+        price: ethers.utils.formatEther(shipment.price.toString()),
         status: shipment.status,
+        isPaid: shipment.isPaid,
       }));
+
+      console.log("All Shipments Data:", allShipments);
       return allShipments;
     } catch (error) {
-      throw new Error("Failed to fetch shipments: ", error);
+      console.log("Error while getting the shipments", error);
     }
   }
 
@@ -105,12 +113,13 @@ export const TrackingProvider = ({ children }) => {
       const shipmentCount = await contract.getShipmentCount(accounts[0]);
       return shipmentCount.toNumber();
     } catch (error) {
-      throw new Error("No Shipment Count: ", error);
+      // throw new Error("No Shipment Count: ", error);
+      console.log("No Shipment Count: ", error);
     }
   }
 
   async function completeShipment(completeShip) {
-    console.log(completeShip);
+    // console.log(completeShip);
 
     const { receiver, index } = completeShip;
 
@@ -122,9 +131,9 @@ export const TrackingProvider = ({ children }) => {
       });
 
       const web3Modal = new Web3Modal();
-      const connection = web3Modal.connect();
+      const connection = await web3Modal.connect();
 
-      const provider = new ethers.utils.JsonRpcProvider(connection);
+      const provider = new ethers.providers.Web3Provider(connection);
       const signer = provider.getSigner();
       const contract = fetchContract(signer);
 
@@ -134,18 +143,18 @@ export const TrackingProvider = ({ children }) => {
         receiver, //--receiver
         index, //---index
         {
-          gasLimit: 30000,
+          gasLimit: 300000, //--- if you want to make a transaction must specify the gas fee to make a transaction.
         }
       );
       transaction.wait();
-      console.log(transaction);
+      console.log("Complete Trans: ", transaction);
     } catch (error) {
-      throw new Error("Wrong complete shipent: ", error);
+      throw new Error("Wrong completeShipent: ", error);
     }
   }
 
   async function getShipment(index) {
-    console.log(index * 1);
+    // console.log(index * 1);
 
     try {
       if (!window.ethereum) return "Please install a wallet i.e. Metamask";
@@ -158,16 +167,16 @@ export const TrackingProvider = ({ children }) => {
       const contract = fetchContract(provider);
       // passed the arguments of getShipment function of smart contract i.e. sender & index number
       const shipment = await contract.getShipment(accounts[0], index * 1);
-      console.log(shipment);
+      // console.log(shipment);
 
       // if we console the "shipment" we will get an array,
       // so by calling index we get all datat as following
       const singleShipment = {
         sender: shipment[0],
         receiver: shipment[1],
-        pickupTime: shipment[2].toNUmber(),
-        deliveryTime: shipment[3].toNUmber(),
-        distance: shipment[4].toNUmber(),
+        pickupTime: shipment[2].toNumber(),
+        deliveryTime: shipment[3].toNumber(),
+        distance: shipment[4].toNumber(),
         price: ethers.utils.formatEther(shipment[5].toString()),
         status: shipment[6],
         isPaid: shipment[7],
@@ -190,11 +199,19 @@ export const TrackingProvider = ({ children }) => {
 
       const web3Modal = new Web3Modal();
       const connection = await web3Modal.connect();
-      const provider = new ethers.providers.JsonRpcProvider(connection);
+      const provider = new ethers.providers.Web3Provider(connection);
       const signer = provider.getSigner();
       const contract = fetchContract(signer);
-      const shipment = contract.startShipment(accounts[0], receiver, index * 1); // while passing the SM function arguments
+      const shipment = await contract.startShipment(
+        accounts[0],
+        receiver,
+        index * 1,
+        {
+          gasLimit: 300000,
+        }
+      ); // while passing the SC function arguments
       shipment.wait();
+      console.log("Shipment: ", shipment);
     } catch (error) {
       throw new Error("Sorry no shipments ", error);
     }
@@ -202,12 +219,12 @@ export const TrackingProvider = ({ children }) => {
 
   // --- CHECK WALLET CONNECTD
 
-  async function chectIfWalletConnected() {
+  async function checkIfWalletConnected() {
     try {
       if (!window.ethereum) return "Please install a wallet i.e. Metamask";
 
-      const accounts = await window.ethereum.method({
-        request: "eth_accounts",
+      const accounts = await window.ethereum.request({
+        method: "eth_accounts",
       });
 
       if (accounts.length > 0) {
@@ -236,12 +253,13 @@ export const TrackingProvider = ({ children }) => {
   }
 
   useEffect(() => {
-    chectIfWalletConnected();
+    checkIfWalletConnected();
   }, []);
 
   return (
     // -- by utilizing the trackingContext packege, we call pass any valuein it i.e function, data, variable etc
     // -- and that data can be accessed through out trhe app
+
     <TrackingContext.Provider
       value={{
         connectWallet,
@@ -258,4 +276,4 @@ export const TrackingProvider = ({ children }) => {
       {children}
     </TrackingContext.Provider>
   );
-};
+}
